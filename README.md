@@ -15,7 +15,24 @@ SDK-less. Use HTTP v1.1 chunked transfer encoding to push events.
 
 ## Security
 
-Always use HTTPS
+Always use HTTPS.
+
+Generate a Self-Signed Certificate. Use this method if you want to use HTTPS
+(HTTP over TLS) to secure your Apache HTTP or Nginx web server, and you do
+not require that your certificate is signed by a CA.
+
+This command creates a 2048-bit private key (domain.key) and a self-signed
+certificate (domain.crt) from scratch:
+
+    openssl req \
+       -newkey rsa:2048 -nodes -keyout domain.key \
+       -x509 -days 365 -out domain.crt
+
+Answer the CSR information prompt to complete the process.
+
+The -x509 option tells req to create a self-signed cerificate. The -days 365
+option specifies that the certificate will be valid for 365 days. A temporary
+CSR is generated to gather information to associate with the certificate.
 
 ## Take online
 

@@ -2,3 +2,5 @@
 *.pb.h
 *.pb.cc
 sps_server
+sps_server.dbg
+rpc_data/

@@ -15,8 +15,10 @@ CXXFLAGS+=$(CPPFLAGS) -std=c++0x $(RELEASE_FLAGS) -D__const__= -pipe -W -Wall -W
 ifeq ($(NEED_GPERFTOOLS), 1)
 	CXXFLAGS+=-DBRPC_ENABLE_CPU_PROFILER
 endif
+DEBUGLIBS:=$(LIBS) $(BRPC_PATH)/test
 HDRS+=$(BRPC_PATH)/output/include
 LIBS+=$(BRPC_PATH)/output/lib
+DEBUGLIBPATHS=$(addprefix -L, $(DEBUGLIBS))
 HDRPATHS = $(addprefix -I, $(HDRS))
 LIBPATHS = $(addprefix -L, $(LIBS))
 COMMA=,
@@ -46,6 +48,7 @@ else ifeq ($(SYSTEM),Linux)
 	STATIC_LINKINGS += -lbrpc
 	LINK_OPTIONS_SO = -Xlinker "-(" $^ -Xlinker "-)" $(STATIC_LINKINGS) $(DYNAMIC_LINKINGS)
 	LINK_OPTIONS = -Xlinker "-(" $^ -Wl,-Bstatic $(STATIC_LINKINGS) -Wl,-Bdynamic -Xlinker "-)" $(DYNAMIC_LINKINGS)
+	DEBUGLINK_OPTIONS=$(subst -lbrpc,-lbrpc.dbg,$(LINK_OPTIONS))
 endif
 
 print-%:
@@ -55,6 +58,9 @@ print-%:
 
 .PHONY:all
 all: sps_server
+
+.PHONY:debug
+debug: sps_server.dbg
 
 .PHONY:clean
 clean:
@@ -84,6 +90,10 @@ ifneq ("$(LINK_SO)", "")
 else
 	@$(CXX) $(LIBPATHS) $(LINK_OPTIONS) -o $@
 endif
+
+sps_server.dbg:$(PROTO_OBJS) $(SERVER_OBJS)
+	@echo "Linking $@"
+	@$(CXX) $(DEBUGLIBPATHS) $(DEBUGLINK_OPTIONS) -o $@
 
 %.pb.cc %.pb.h:%.proto
 	@echo "Generating $@"

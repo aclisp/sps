@@ -85,4 +85,10 @@ quits and subscribe again. Server may remove outdated push events.
 
 ## Topics
 
+# Environment
+
+Install these on Ubuntu
+
+    sudo apt-get install git g++ make libssl-dev libgflags-dev libprotobuf-dev libprotoc-dev protobuf-compiler libleveldb-dev libsnappy-dev libgoogle-perftools-dev
+
 

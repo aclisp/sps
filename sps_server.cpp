@@ -2,6 +2,7 @@
 
 #include <gflags/gflags.h>
 #include <butil/logging.h>
+#include <butil/hash.h>
 #include <brpc/server.h>
 #include <brpc/restful.h>
 #include "sps.pb.h"
@@ -13,6 +14,63 @@ DEFINE_string(certificate, "insecure.crt", "Certificate file path to enable SSL"
 DEFINE_string(private_key, "insecure.key", "Private key file path to enable SSL");
 
 namespace sps {
+
+struct UserKey {
+    struct Hasher {
+        size_t operator()(const UserKey& key) const {
+            return butil::Hash((char*)&key.uid, 10);
+        }
+    };
+    int64_t uid;
+    int16_t device_type;
+};
+
+struct RoomKey {
+    struct Hasher {
+        size_t operator()(const RoomKey& key) const {
+            return butil::Hash(key.roomid, 36);
+        }
+    };
+    char roomid[37];
+};
+
+class Session : public brpc::SharedObject,
+                public butil::LinkNode<Session> {
+public:
+    typedef butil::intrusive_ptr<Session> Ptr;
+    typedef butil::LinkedList<Session> List;
+private:
+    UserKey key_;
+    bthread::Mutex mutex_;
+    std::vector<RoomKey> interested_rooms_;
+};
+
+class Room : public brpc::SharedObject {
+public:
+    typedef butil::intrusive_ptr<Room> Ptr;
+private:
+    RoomKey key_;
+    bthread::Mutex mutex_;
+    Session::List sessions_;
+};
+
+class Bucket : public brpc::SharedObject {
+public:
+    typedef butil::intrusive_ptr<Bucket> Ptr;
+private:
+    bthread::Mutex mutex_;
+    butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
+    butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> rooms_;
+};
+
+class SimplePushServer {
+public:
+private:
+    std::unique_ptr<brpc::Server> rpc_server_;
+    std::vector<Bucket::Ptr> buckets_;
+};
+
+// ---
 
 class PushServiceImpl : public PushService {
 public:

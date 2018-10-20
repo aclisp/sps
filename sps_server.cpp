@@ -15,6 +15,13 @@ DEFINE_string(private_key, "insecure.key", "Private key file path to enable SSL"
 
 namespace sps {
 
+struct ServerOptions {
+    ServerOptions();
+    size_t bucket_size;
+    size_t suggested_room_count;
+    size_t suggested_user_count;
+};
+
 struct UserKey {
     struct Hasher {
         size_t operator()(const UserKey& key) const {
@@ -56,19 +63,55 @@ private:
 
 class Bucket : public brpc::SharedObject {
 public:
-    typedef butil::intrusive_ptr<Bucket> Ptr;
+    typedef std::unique_ptr<Bucket> Ptr;
+    explicit Bucket(int index, const ServerOptions& options);
+    ~Bucket() { LOG(INFO) << "destory bucket[" << index_ << "]"; }
+    int index() { return index_; }
 private:
+    const int index_;
     bthread::Mutex mutex_;
     butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
     butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> rooms_;
 };
 
+
 class SimplePushServer {
 public:
+    typedef std::unique_ptr<SimplePushServer> Ptr;
+    explicit SimplePushServer(const ServerOptions& options);
+    brpc::Server& brpc_server() { return *brpc_server_; }
+    Bucket& bucket(int64_t uid) {
+        return *buckets_[uid % buckets_.size()];  // uid promotes to unsigned
+    }
 private:
-    std::unique_ptr<brpc::Server> rpc_server_;
+    std::unique_ptr<brpc::Server> brpc_server_;
     std::vector<Bucket::Ptr> buckets_;
 };
+
+// ---
+
+ServerOptions::ServerOptions()
+    : bucket_size(8)
+    , suggested_room_count(128)
+    , suggested_user_count(1024) {
+}
+
+SimplePushServer::SimplePushServer(const ServerOptions& options)
+    : brpc_server_(new brpc::Server)
+    , buckets_(options.bucket_size) {
+    for (size_t i = 0; i < options.bucket_size; ++i) {
+        buckets_[i].reset(new Bucket(i, options));
+    }
+}
+
+Bucket::Bucket(int index, const ServerOptions& options)
+    : index_(index) {
+    CHECK_EQ(0, sessions_.init(options.suggested_user_count, 70));
+    CHECK_EQ(0, rooms_.init(options.suggested_room_count, 70));
+    LOG(INFO) << "create bucket[" << index_ << "] of"
+              << " room=" << options.suggested_room_count
+              << " user=" << options.suggested_user_count;
+}
 
 // ---
 
@@ -95,13 +138,28 @@ public:
     }
 };
 
+}  // namespace sps
+
+// ---
+
+static sps::SimplePushServer* GPS = nullptr;
+
+namespace sps {
+
+Bucket& GetBucket(int64_t uid) {
+    return GPS->bucket(uid);
 }
+
+}  // namespace sps
 
 int main(int argc, char* argv[]) {
     GFLAGS_NS::SetUsageMessage("A simple push server");
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
 
-    brpc::Server server;
+    sps::ServerOptions push_server_options;
+    sps::SimplePushServer::Ptr push_server(new sps::SimplePushServer(push_server_options));
+    GPS = push_server.get();
+    brpc::Server& server = push_server->brpc_server();
 
     sps::PushServiceImpl push_svc;
 
@@ -121,5 +179,9 @@ int main(int argc, char* argv[]) {
     }
 
     server.RunUntilAskedToQuit();
+
+    // testing
+    LOG(INFO) << "quitting: hit bucket of " << sps::GetBucket(-1).index();
+
     return 0;
 }

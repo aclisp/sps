@@ -26,7 +26,8 @@ SOPATHS=$(addprefix -Wl$(COMMA)-rpath$(COMMA), $(LIBS))
 
 CLIENT_SOURCES =
 BENCHMARK_SOURCES =
-SERVER_SOURCES = sps_server.cpp
+SERVER_SOURCES = sps_server.cpp sps_bucket.cpp
+TEST_SOURCES = sps_test.cpp sps_bucket.cpp
 PROTOS = sps.proto
 
 PROTO_OBJS = $(PROTOS:.proto=.pb.o)
@@ -34,6 +35,7 @@ PROTO_GENS = $(PROTOS:.proto=.pb.h) $(PROTOS:.proto=.pb.cc)
 CLIENT_OBJS = $(addsuffix .o, $(basename $(CLIENT_SOURCES)))
 BENCHMARK_OBJS = $(addsuffix .o, $(basename $(BENCHMARK_SOURCES)))
 SERVER_OBJS = $(addsuffix .o, $(basename $(SERVER_SOURCES)))
+TEST_OBJS = $(addsuffix .o, $(basename $(TEST_SOURCES)))
 
 ifeq ($(SYSTEM),Darwin)
  ifneq ("$(LINK_SO)", "")
@@ -49,6 +51,7 @@ else ifeq ($(SYSTEM),Linux)
 	LINK_OPTIONS_SO = -Xlinker "-(" $^ -Xlinker "-)" $(STATIC_LINKINGS) $(DYNAMIC_LINKINGS)
 	LINK_OPTIONS = -Xlinker "-(" $^ -Wl,-Bstatic $(STATIC_LINKINGS) -Wl,-Bdynamic -Xlinker "-)" $(DYNAMIC_LINKINGS)
 	DEBUGLINK_OPTIONS=$(subst -lbrpc,-lbrpc.dbg,$(LINK_OPTIONS))
+	TESTLINK_OPTIONS=$(subst -lbrpc,-lbrpc.dbg -lgtest,$(LINK_OPTIONS))
 endif
 
 print-%:
@@ -59,13 +62,16 @@ print-%:
 .PHONY:all
 all: sps_server
 
+.PHONY:test
+test: sps_test
+
 .PHONY:debug
 debug: sps_server.dbg
 
 .PHONY:clean
 clean:
 	@echo "Cleaning"
-	@rm -rf sps_client sps_benchmark sps_server $(PROTO_GENS) $(PROTO_OBJS) $(CLIENT_OBJS) $(BENCHMARK_OBJS) $(SERVER_OBJS)
+	@rm -rf sps_client sps_benchmark sps_server sps_test sps_server.dbg $(PROTO_GENS) $(PROTO_OBJS) $(CLIENT_OBJS) $(BENCHMARK_OBJS) $(SERVER_OBJS) $(TEST_OBJS)
 
 sps_client:$(CLIENT_OBJS)
 	@echo "Linking $@"
@@ -90,6 +96,10 @@ ifneq ("$(LINK_SO)", "")
 else
 	@$(CXX) $(LIBPATHS) $(LINK_OPTIONS) -o $@
 endif
+
+sps_test:$(TEST_OBJS)
+	@echo "Linking $@"
+	@$(CXX) $(DEBUGLIBPATHS) $(TESTLINK_OPTIONS) -o $@
 
 sps_server.dbg:$(PROTO_OBJS) $(SERVER_OBJS)
 	@echo "Linking $@"

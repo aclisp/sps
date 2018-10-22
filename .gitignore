@@ -3,4 +3,5 @@
 *.pb.cc
 sps_server
 sps_server.dbg
+sps_test
 rpc_data/

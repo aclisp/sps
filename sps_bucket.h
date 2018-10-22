@@ -16,6 +16,7 @@ struct UserKey {
             return butil::Hash((char*)&key.uid, 10);
         }
     };
+    explicit UserKey(int64_t _uid) : uid(_uid), device_type(0) {}
     bool operator==(const UserKey& rhs) const {
         return uid == rhs.uid
             && device_type == rhs.device_type;
@@ -30,54 +31,63 @@ struct RoomKey {
             return butil::Hash(key.roomid, 36);
         }
     };
-    RoomKey(const std::string& roomid_str) {
-        strncpy(roomid, roomid_str.c_str(), sizeof(roomid));
+    explicit RoomKey(const std::string& roomid_str) {
+        strncpy(roomid, roomid_str.c_str(), sizeof(roomid)-1);
         roomid[sizeof(roomid)-1] = '\0';
     }
     bool operator==(const RoomKey& rhs) const {
-        return memcmp(roomid, rhs.roomid, sizeof(roomid)-1);
+        // strncpy pads roomid with (further) null bytes
+        return memcmp(roomid, rhs.roomid, sizeof(roomid)-1) == 0;
     }
+    const char* room_id() const { return static_cast<const char*>(roomid); }
     char roomid[37];
 };
 
 class Session : public brpc::SharedObject,
-                public butil::LinkNode<Session> {
+                public brpc::Describable {
 friend class Bucket;
+friend class Room;
 public:
     typedef butil::intrusive_ptr<Session> Ptr;
-    typedef butil::LinkedList<Session> List;
     Session(const UserKey& user, brpc::ProgressiveAttachment* pa);
+    ~Session();
     void set_interested_room(const std::string& rooms);
+    std::vector<RoomKey> interested_rooms() const;
+    void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
 private:
     UserKey key_;
     butil::intrusive_ptr<brpc::ProgressiveAttachment> writer_;
-    int64_t created_ms_;
-    int64_t written_ms_;
-    bthread::Mutex mutex_;
+    int64_t created_us_;
+    int64_t written_us_;
+    mutable bthread::Mutex mutex_;
     std::vector<RoomKey> interested_rooms_;
 };
 
 class Room : public brpc::SharedObject {
 public:
     typedef butil::intrusive_ptr<Room> Ptr;
-    Room(const RoomKey& rid) : key_(rid) {}
-    void add_session(Session* session);
+    explicit Room(const RoomKey& rid);
+    ~Room();
+    void add_session(Session::Ptr ps);
+    const char* room_id() const { return key_.room_id(); }
 private:
     RoomKey key_;
-    bthread::Mutex mutex_;
-    Session::List sessions_;
+    mutable bthread::Mutex mutex_;
+    butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
 };
 
-class Bucket : public brpc::SharedObject {
+class Bucket : public brpc::SharedObject,
+               public brpc::Describable {
 public:
     typedef std::unique_ptr<Bucket> Ptr;
-    explicit Bucket(int index, const ServerOptions& options);
-    ~Bucket() { LOG(INFO) << "destory bucket[" << index_ << "]"; }
-    int index() { return index_; }
-    void add_session(const UserKey& key, Session* session);
+    Bucket(int index, const ServerOptions& options);
+    ~Bucket();
+    int index() const { return index_; }
+    void add_session(Session* session);
+    void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
 private:
     const int index_;
-    bthread::Mutex mutex_;
+    mutable bthread::Mutex mutex_;
     butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
     butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> rooms_;
 };

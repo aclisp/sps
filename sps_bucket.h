@@ -55,8 +55,6 @@ struct RoomKey {
 
 class Session : public brpc::SharedObject,
                 public brpc::Describable {
-friend class Bucket;
-friend class Room;
 public:
     typedef butil::intrusive_ptr<Session> Ptr;
     Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
@@ -64,6 +62,7 @@ public:
     void set_interested_room(const std::string& rooms);
     std::vector<RoomKey> interested_rooms() const;
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
+    const UserKey& key() const { return key_; }
 private:
     UserKey key_;
     butil::intrusive_ptr<brpc::ProgressiveAttachment> writer_;
@@ -79,7 +78,10 @@ public:
     explicit Room(const RoomKey& key);
     ~Room();
     void add_session(Session::Ptr ps);
+    bool del_session(Session::Ptr ps);
     const char* room_id() const { return key_.room_id(); }
+    const RoomKey& key() const { return key_; }
+    bool has_session(Session::Ptr ps);
 private:
     RoomKey key_;
     mutable bthread::Mutex mutex_;
@@ -94,7 +96,10 @@ public:
     ~Bucket();
     int index() const { return index_; }
     void add_session(Session* session);
+    void del_session(const UserKey& key);
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
+    Session::Ptr get_session(const UserKey& key);
+    Room::Ptr get_room(const RoomKey& key);
 private:
     const int index_;
     mutable bthread::Mutex mutex_;

@@ -63,15 +63,18 @@ void Session::set_interested_room(const std::string& rooms) {
 }
 
 void Bucket::add_session(Session* session) {
+    CHECK(session != nullptr);
+
     Session::Ptr ps(session);
+    std::vector<RoomKey> room_keys = ps->interested_rooms();
     std::vector<Room::Ptr> interested_rooms;
 
     {
         BAIDU_SCOPED_LOCK(mutex_);
-        sessions_[ps->key_] = ps;
+        sessions_[ps->key()] = ps;
         // create room as needed
-        for (std::vector<RoomKey>::const_iterator it = ps->interested_rooms_.begin();
-             it != ps->interested_rooms_.end(); ++it) {
+        for (std::vector<RoomKey>::const_iterator it = room_keys.begin();
+             it != room_keys.end(); ++it) {
             const RoomKey& key = *it;
             Room::Ptr room = rooms_[key];
             if (!room) {
@@ -88,9 +91,90 @@ void Bucket::add_session(Session* session) {
     }
 }
 
-void Room::add_session(Session::Ptr ps) {
+void Bucket::del_session(const UserKey &key) {
+    Session::Ptr ps;
+
+    {
+        BAIDU_SCOPED_LOCK(mutex_);
+        Session::Ptr* pps = sessions_.seek(key);
+        if (pps == NULL) {
+            return;
+        }
+        ps = *pps;
+    }
+
+    std::vector<RoomKey> room_keys = ps->interested_rooms();
+    std::vector< std::pair<Room::Ptr, bool> > interested_rooms;
+
+    {
+        BAIDU_SCOPED_LOCK(mutex_);
+        for (std::vector<RoomKey>::const_iterator it = room_keys.begin();
+             it != room_keys.end(); ++it) {
+            const RoomKey &key = *it;
+            Room::Ptr* ppr = rooms_.seek(key);
+            if (ppr) {
+                interested_rooms.push_back(std::make_pair(*ppr, false));
+            }
+        }
+    }
+
+    for (std::vector< std::pair<Room::Ptr, bool> >::iterator it = interested_rooms.begin();
+         it != interested_rooms.end(); ++it) {
+        it->second = (it->first)->del_session(ps);
+    }
+
+    {
+        BAIDU_SCOPED_LOCK(mutex_);
+        for (std::vector< std::pair<Room::Ptr, bool> >::iterator it = interested_rooms.begin();
+             it != interested_rooms.end(); ++it) {
+            if (it->second) {
+                rooms_.erase(it->first->key());
+            }
+        }
+        sessions_.erase(key);
+    }
+}
+
+Session::Ptr Bucket::get_session(const UserKey& key) {
     BAIDU_SCOPED_LOCK(mutex_);
-    sessions_[ps->key_] = ps;
+    Session::Ptr* pps = sessions_.seek(key);
+    if (pps == NULL) {
+        return Session::Ptr();
+    } else {
+        return *pps;
+    }
+}
+
+Room::Ptr Bucket::get_room(const RoomKey& key) {
+    BAIDU_SCOPED_LOCK(mutex_);
+    Room::Ptr* ppr = rooms_.seek(key);
+    if (ppr == NULL) {
+        return Room::Ptr();
+    } else {
+        return *ppr;
+    }
+}
+
+void Room::add_session(Session::Ptr ps) {
+    CHECK(ps.get() != nullptr);
+
+    BAIDU_SCOPED_LOCK(mutex_);
+    sessions_[ps->key()] = ps;
+}
+
+bool Room::del_session(Session::Ptr ps) {
+    CHECK(ps.get() != nullptr);
+
+    BAIDU_SCOPED_LOCK(mutex_);
+    sessions_.erase(ps->key());
+    return sessions_.empty();
+}
+
+bool Room::has_session(Session::Ptr ps) {
+    CHECK(ps.get() != nullptr);
+
+    BAIDU_SCOPED_LOCK(mutex_);
+    return sessions_.seek(ps->key()) != NULL;
 }
 
 std::vector<RoomKey> Session::interested_rooms() const {

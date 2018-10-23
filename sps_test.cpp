@@ -71,7 +71,7 @@ TEST_F(BucketTest, Add_and_Del_Session) {
     LOG(INFO) << *bucket_;
 
     bucket_->del_session(key1);
-    ASSERT_TRUE(bucket_->get_room(RoomKey("mars")));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mars")).get());
     ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key2)));
     LOG(INFO) << *bucket_;
 

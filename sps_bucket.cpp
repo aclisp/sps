@@ -29,11 +29,11 @@ Bucket::~Bucket() {
 Room::Room(const RoomKey& key)
     : key_(key) {
     CHECK_EQ(0, sessions_.init(8, 70));
-    LOG(INFO) << "create room[" << room_id() << "]";
+    VLOG(1) << "create room[" << room_id() << "]";
 }
 
 Room::~Room() {
-    LOG(INFO) << "destroy room[" << room_id() << "]";
+    VLOG(1) << "destroy room[" << room_id() << "]";
 }
 
 Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa)
@@ -43,11 +43,11 @@ Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa)
     created_us_ = butil::gettimeofday_us();
     written_us_ = 0;
 
-    LOG(INFO) << "create session[" << key_.uid << "," << key_.device_type << "]";
+    VLOG(1) << "create session[" << key_.uid << "," << key_.device_type << "]";
 }
 
 Session::~Session() {
-    LOG(INFO) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
+    VLOG(1) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
 }
 
 void Session::set_interested_room(const std::string& rooms) {

@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 #include <butil/logging.h>
+#include <butil/rand_util.h>
+#include <butil/string_printf.h>
+#include <bthread/bthread.h>
+#include "bthread/unstable.h"
 
 #include "sps_bucket.h"
 
@@ -79,6 +83,105 @@ TEST_F(BucketTest, Add_and_Del_Session) {
     bucket_->del_session(key2);
     ASSERT_TRUE (bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key3)));
     ASSERT_TRUE (bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key3)));
+    LOG(INFO) << *bucket_;
+}
+
+class BucketTestMultiThreaded : public testing::Test {
+protected:
+    void SetUp() override {
+        bucket_ = new Bucket(0, ServerOptions());
+        start_ = false;
+        stop_ = false;
+        bthread_cond_init(&start_barrier_, NULL);
+        bthread_mutex_init(&start_mutex_, NULL);
+        for (int i=0; i<10000; ++i) {
+            bthread_t th;
+            bthread_attr_t attr = BTHREAD_ATTR_NORMAL;
+            if (bthread_start_background(
+                    &th, &attr, simulate_session, this) == 0) {
+                threads_.push_back(th);
+            } else {
+                LOG(ERROR) << "can not create thread for simulate_session";
+            }
+        }
+        for (int i=0; i<10000; ++i) {
+            rooms_.push_back(butil::string_printf("room%02d", i));
+        }
+    }
+
+    void TearDown() override {
+        stop_and_join();
+        bthread_cond_destroy(&start_barrier_);
+        bthread_mutex_destroy(&start_mutex_);
+        delete bucket_;
+    }
+
+    void stop_and_join() {
+        stop_ = true;
+        for (std::vector<bthread_t>::iterator it = threads_.begin(); it != threads_.end(); ++it) {
+            bthread_t th = *it;
+            bthread_join(th, NULL);
+        }
+    }
+
+    void start() {
+        bthread_mutex_lock(&start_mutex_);
+        start_ = true;
+        bthread_cond_broadcast(&start_barrier_);
+        bthread_mutex_unlock(&start_mutex_);
+    }
+
+    static void* simulate_session(void* arg) {
+        BucketTestMultiThreaded* c = static_cast<BucketTestMultiThreaded*>(arg);
+        bthread_mutex_lock(&c->start_mutex_);
+        while (c->start_ == false) {
+            bthread_cond_wait(&c->start_barrier_, &c->start_mutex_);
+        }
+        bthread_mutex_unlock(&c->start_mutex_);
+
+        c->run_simulate_session();
+        return NULL;
+    }
+
+    void run_simulate_session() {
+        bthread_t self = bthread_self();
+        std::vector<bthread_t>::iterator it = std::find(threads_.begin(), threads_.end(), self);
+        int index = std::distance(threads_.begin(), it);
+        UserKey key(index);
+        while (!stop_) {
+            std::unique_ptr<Session> session(new Session(key, nullptr));
+            int i1 = butil::RandInt(0, rooms_.size()-1);
+            int i2 = butil::RandInt(i1, std::min(i1+3, int(rooms_.size()-1)));
+            int from = std::min(i1, i2);
+            int to = std::max(i1, i2);
+            std::ostringstream oss;
+            for (int i = from; i < to; ++i) {
+                oss << rooms_[i] << ",";
+            }
+            session->set_interested_room(oss.str());
+            bucket_->add_session(session.release());
+            bthread_usleep(butil::RandInt(100, 1000));
+            bucket_->del_session(key);
+            bthread_usleep(butil::RandInt(100, 1000));
+        }
+    }
+
+    Bucket* bucket_;
+    bool start_;
+    bthread_cond_t start_barrier_;
+    bthread_mutex_t start_mutex_;
+    std::vector<bthread_t> threads_;
+    std::vector<std::string> rooms_;
+    volatile bool stop_;
+};
+
+TEST_F(BucketTestMultiThreaded, Simulate_Session) {
+    start();
+    for (int i=0; i<50; ++i) {
+        bthread_usleep(200000);
+        LOG(INFO) << *bucket_;
+    }
+    stop_and_join();
     LOG(INFO) << *bucket_;
 }
 

@@ -1,12 +1,8 @@
-#include <gflags/gflags.h>
-#include <butil/logging.h>
-#include <butil/hash.h>
-#include <butil/strings/string_split.h>
-#include <brpc/server.h>
-#include <brpc/restful.h>
-#include <brpc/builtin/common.h>
-
 #include "sps_bucket.h"
+
+#include <butil/logging.h>
+#include <butil/strings/string_split.h>
+#include <brpc/builtin/common.h>
 
 
 namespace sps {
@@ -27,22 +23,22 @@ Bucket::Bucket(int index, const ServerOptions& options)
 }
 
 Bucket::~Bucket() {
-    LOG(INFO) << "destory bucket[" << index_ << "]";
+    LOG(INFO) << "destroy bucket[" << index_ << "]";
 }
 
-Room::Room(const RoomKey& rid)
-    : key_(rid) {
+Room::Room(const RoomKey& key)
+    : key_(key) {
     CHECK_EQ(0, sessions_.init(8, 70));
     LOG(INFO) << "create room[" << room_id() << "]";
 }
 
 Room::~Room() {
-    LOG(INFO) << "destory room[" << room_id() << "]";
+    LOG(INFO) << "destroy room[" << room_id() << "]";
 }
 
-Session::Session(const UserKey& user, brpc::ProgressiveAttachment* pa)
-    : key_(user.uid) {
-    key_.device_type = user.device_type;
+Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa)
+    : key_(key.uid) {
+    key_.device_type = key.device_type;
     writer_.reset(pa);
     created_us_ = butil::gettimeofday_us();
     written_us_ = 0;
@@ -51,7 +47,7 @@ Session::Session(const UserKey& user, brpc::ProgressiveAttachment* pa)
 }
 
 Session::~Session() {
-    LOG(INFO) << "destory session[" << key_.uid << "," << key_.device_type << "]";
+    LOG(INFO) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
 }
 
 void Session::set_interested_room(const std::string& rooms) {
@@ -76,11 +72,11 @@ void Bucket::add_session(Session* session) {
         // create room as needed
         for (std::vector<RoomKey>::const_iterator it = ps->interested_rooms_.begin();
              it != ps->interested_rooms_.end(); ++it) {
-            const RoomKey& rid = *it;
-            Room::Ptr room = rooms_[rid];
+            const RoomKey& key = *it;
+            Room::Ptr room = rooms_[key];
             if (!room) {
-                room.reset(new Room(rid));
-                rooms_[rid] = room;
+                room.reset(new Room(key));
+                rooms_[key] = room;
             }
             interested_rooms.push_back(room);
         }

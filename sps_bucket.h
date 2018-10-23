@@ -1,6 +1,16 @@
 #ifndef SPS_BUCKET_H_
 #define SPS_BUCKET_H_
 
+#include <stddef.h>
+#include <stdint.h>
+#include <butil/hash.h>
+#include <brpc/shared_object.h>
+#include <brpc/describable.h>
+#include <brpc/progressive_attachment.h>
+#include <bthread/mutex.h>
+#include <butil/containers/flat_map.h>
+
+
 namespace sps {
 
 struct ServerOptions {
@@ -16,7 +26,7 @@ struct UserKey {
             return butil::Hash((char*)&key.uid, 10);
         }
     };
-    explicit UserKey(int64_t _uid) : uid(_uid), device_type(0) {}
+    explicit UserKey(int64_t uid, int16_t device_type = 0) : uid(uid), device_type(device_type) {}
     bool operator==(const UserKey& rhs) const {
         return uid == rhs.uid
             && device_type == rhs.device_type;
@@ -49,7 +59,7 @@ friend class Bucket;
 friend class Room;
 public:
     typedef butil::intrusive_ptr<Session> Ptr;
-    Session(const UserKey& user, brpc::ProgressiveAttachment* pa);
+    Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
     ~Session();
     void set_interested_room(const std::string& rooms);
     std::vector<RoomKey> interested_rooms() const;
@@ -66,7 +76,7 @@ private:
 class Room : public brpc::SharedObject {
 public:
     typedef butil::intrusive_ptr<Room> Ptr;
-    explicit Room(const RoomKey& rid);
+    explicit Room(const RoomKey& key);
     ~Room();
     void add_session(Session::Ptr ps);
     const char* room_id() const { return key_.room_id(); }

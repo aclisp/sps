@@ -1,4 +1,4 @@
-BRPC_PATH=$(HOME)/brpc
+BRPC_PATH=../brpc
 NEED_GPERFTOOLS=1
 RELEASE=0
 #LINK_SO=1
@@ -15,10 +15,10 @@ CXXFLAGS+=$(CPPFLAGS) -std=c++0x $(RELEASE_FLAGS) -D__const__= -pipe -W -Wall -W
 ifeq ($(NEED_GPERFTOOLS), 1)
 	CXXFLAGS+=-DBRPC_ENABLE_CPU_PROFILER
 endif
-DEBUGLIBS:=$(LIBS) $(BRPC_PATH)/test
+LIBS_DEBUG:=$(LIBS) $(BRPC_PATH)/test
 HDRS+=$(BRPC_PATH)/output/include
 LIBS+=$(BRPC_PATH)/output/lib
-DEBUGLIBPATHS=$(addprefix -L, $(DEBUGLIBS))
+LIBPATHS_DEBUG = $(addprefix -L, $(LIBS_DEBUG))
 HDRPATHS = $(addprefix -I, $(HDRS))
 LIBPATHS = $(addprefix -L, $(LIBS))
 COMMA=,
@@ -42,16 +42,19 @@ ifeq ($(SYSTEM),Darwin)
 	STATIC_LINKINGS += -lbrpc
  else
 	# *.a must be explicitly specified in clang
+	STATIC_LINKINGS_DEBUG := $(STATIC_LINKINGS) $(BRPC_PATH)/test/libbrpc.dbg.a
 	STATIC_LINKINGS += $(BRPC_PATH)/output/lib/libbrpc.a
  endif
 	LINK_OPTIONS_SO = $^ $(STATIC_LINKINGS) $(DYNAMIC_LINKINGS)
 	LINK_OPTIONS = $^ $(STATIC_LINKINGS) $(DYNAMIC_LINKINGS)
+	LINK_OPTIONS_DEBUG = $^ $(STATIC_LINKINGS_DEBUG) $(DYNAMIC_LINKINGS)
+	LINK_OPTIONS_TEST = $^ $(STATIC_LINKINGS_DEBUG) /usr/local/lib/libgtest.a $(DYNAMIC_LINKINGS)
 else ifeq ($(SYSTEM),Linux)
 	STATIC_LINKINGS += -lbrpc
 	LINK_OPTIONS_SO = -Xlinker "-(" $^ -Xlinker "-)" $(STATIC_LINKINGS) $(DYNAMIC_LINKINGS)
 	LINK_OPTIONS = -Xlinker "-(" $^ -Wl,-Bstatic $(STATIC_LINKINGS) -Wl,-Bdynamic -Xlinker "-)" $(DYNAMIC_LINKINGS)
-	DEBUGLINK_OPTIONS=$(subst -lbrpc,-lbrpc.dbg,$(LINK_OPTIONS))
-	TESTLINK_OPTIONS=$(subst -lbrpc,-lbrpc.dbg -lgtest,$(LINK_OPTIONS))
+	LINK_OPTIONS_DEBUG = $(subst -lbrpc,-lbrpc.dbg,$(LINK_OPTIONS))
+	LINK_OPTIONS_TEST = $(subst -lbrpc,-lbrpc.dbg -lgtest,$(LINK_OPTIONS))
 endif
 
 print-%:
@@ -99,11 +102,11 @@ endif
 
 sps_test:$(TEST_OBJS)
 	@echo "Linking $@"
-	@$(CXX) $(DEBUGLIBPATHS) $(TESTLINK_OPTIONS) -o $@
+	@$(CXX) $(LIBPATHS_DEBUG) $(LINK_OPTIONS_TEST) -o $@
 
 sps_server.dbg:$(PROTO_OBJS) $(SERVER_OBJS)
 	@echo "Linking $@"
-	@$(CXX) $(DEBUGLIBPATHS) $(DEBUGLINK_OPTIONS) -o $@
+	@$(CXX) $(LIBPATHS_DEBUG) $(LINK_OPTIONS_DEBUG) -o $@
 
 %.pb.cc %.pb.h:%.proto
 	@echo "Generating $@"

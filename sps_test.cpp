@@ -13,7 +13,7 @@
 DEFINE_int32(sps_test_concurrency, 10000, "the number of bthread that BucketTestMultiThreaded setup with");
 DEFINE_int32(sps_test_room_pool_size, 10000, "the number of rooms that a session can join");
 DEFINE_int32(sps_test_simulation_sec, 1, "the seconds (approximately) session simulation lasts");
-DEFINE_int32(sps_test_dummy_server_port, 8888, "the port of brpc dummy server");
+DEFINE_int32(sps_test_dummy_server_port, -1, "the port of brpc dummy server. set to -1 does not start the dummy server.");
 
 
 using namespace sps;
@@ -197,6 +197,8 @@ int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
     GFLAGS_NS::SetUsageMessage("sps testing module");
     GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
-    brpc::StartDummyServerAt(FLAGS_sps_test_dummy_server_port);
+    if (FLAGS_sps_test_dummy_server_port >= 0) {
+        brpc::StartDummyServerAt(FLAGS_sps_test_dummy_server_port);
+    }
     return RUN_ALL_TESTS();
 }

@@ -91,16 +91,10 @@ void Bucket::add_session(Session* session) {
     }
 }
 
-void Bucket::del_session(const UserKey &key) {
-    Session::Ptr ps;
-
-    {
-        BAIDU_SCOPED_LOCK(mutex_);
-        Session::Ptr* pps = sessions_.seek(key);
-        if (pps == NULL) {
-            return;
-        }
-        ps = *pps;
+Session::Ptr Bucket::del_session(const UserKey &key) {
+    Session::Ptr ps = get_session(key);
+    if (!ps) {
+        return ps;
     }
 
     std::vector<RoomKey> room_keys = ps->interested_rooms();
@@ -133,6 +127,8 @@ void Bucket::del_session(const UserKey &key) {
         }
         sessions_.erase(key);
     }
+
+    return ps;
 }
 
 Session::Ptr Bucket::get_session(const UserKey& key) {

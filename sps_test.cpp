@@ -142,7 +142,7 @@ protected:
     static void* simulate_session(void* arg) {
         BucketTestMultiThreaded* c = static_cast<BucketTestMultiThreaded*>(arg);
         bthread_mutex_lock(&c->start_mutex_);
-        while (c->start_ == false) {
+        while (!c->start_) {
             bthread_cond_wait(&c->start_barrier_, &c->start_mutex_);
         }
         bthread_mutex_unlock(&c->start_mutex_);

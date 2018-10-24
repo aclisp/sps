@@ -54,10 +54,22 @@ TEST_F(BucketTest, Del_Session) {
     std::unique_ptr<Session> session(new Session(key, nullptr));
     session->set_interested_room("earth,mars");
     bucket_->add_session(session.release());
-    bucket_->del_session(key);
+
+    Session::Ptr ps = bucket_->del_session(key);
+    ASSERT_TRUE(!bucket_->get_session(key));
     ASSERT_FALSE(bucket_->get_session(key));
     ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
     ASSERT_FALSE(bucket_->get_room(RoomKey("mars")));
+
+    // now change the session's interested room, and add it into bucket again.
+    ps->set_interested_room("mercury,earth");
+    bucket_->add_session(ps);
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth")).get());
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mercury")).get());
+    ASSERT_FALSE(bucket_->get_room(RoomKey("mars")));
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("earth"))->size());
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("mercury"))->size());
+    ASSERT_FALSE(!bucket_->get_session(key));
 }
 
 TEST_F(BucketTest, Add_and_Del_Session) {

@@ -101,6 +101,7 @@ public:
     ~Bucket();
     int index() const { return index_; }
     void add_session(Session* session);
+    void add_session(Session::Ptr ps);
     Session::Ptr del_session(const UserKey& key);
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
     Session::Ptr get_session(const UserKey& key);

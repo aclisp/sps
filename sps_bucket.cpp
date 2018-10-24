@@ -66,6 +66,12 @@ void Bucket::add_session(Session* session) {
     CHECK(session != nullptr);
 
     Session::Ptr ps(session);
+    add_session(ps);
+}
+
+void Bucket::add_session(Session::Ptr ps) {
+    CHECK(ps.get() != nullptr);
+
     std::vector<RoomKey> room_keys = ps->interested_rooms();
     std::vector<Room::Ptr> interested_rooms;
 

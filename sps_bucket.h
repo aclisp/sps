@@ -57,6 +57,8 @@ class Session : public brpc::SharedObject,
                 public brpc::Describable {
 public:
     typedef butil::intrusive_ptr<Session> Ptr;
+    typedef butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> Map;
+
     Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
     ~Session();
     void set_interested_room(const std::string& rooms);
@@ -75,6 +77,8 @@ private:
 class Room : public brpc::SharedObject {
 public:
     typedef butil::intrusive_ptr<Room> Ptr;
+    typedef butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> Map;
+
     explicit Room(const RoomKey& key);
     ~Room();
     void add_session(Session::Ptr ps);
@@ -82,10 +86,11 @@ public:
     const char* room_id() const { return key_.room_id(); }
     const RoomKey& key() const { return key_; }
     bool has_session(Session::Ptr ps);
+    size_t size() const { return sessions_.size(); }
 private:
     RoomKey key_;
     mutable bthread::Mutex mutex_;
-    butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
+    Session::Map sessions_;
 };
 
 class Bucket : public brpc::SharedObject,
@@ -103,8 +108,8 @@ public:
 private:
     const int index_;
     mutable bthread::Mutex mutex_;
-    butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> sessions_;
-    butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> rooms_;
+    Session::Map sessions_;
+    Room::Map rooms_;
 };
 
 }  // namespace sps

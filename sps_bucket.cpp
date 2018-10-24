@@ -202,8 +202,16 @@ void Bucket::Describe(std::ostream& os, const brpc::DescribeOptions&) const {
     BAIDU_SCOPED_LOCK(mutex_);
     os << "sps::Bucket { index=" << index_
        << " sessions=" << sessions_.size()
-       << " rooms=" << rooms_.size()
-       << " }";
+       << " rooms=" << rooms_.size();
+    size_t crowded = 0;
+    for (Room::Map::const_iterator it = rooms_.begin(); it != rooms_.end(); ++it) {
+        Room::Ptr room = it->second;
+        if (room->size() > crowded) {
+            crowded = room->size();
+        }
+    }
+    os << " crowded=" << crowded;
+    os << " }";
 }
 
 }  // namespace sps

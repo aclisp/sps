@@ -1,11 +1,19 @@
 #include <gtest/gtest.h>
+#include <gflags/gflags.h>
 #include <butil/logging.h>
 #include <butil/rand_util.h>
 #include <butil/string_printf.h>
 #include <bthread/bthread.h>
-#include "bthread/unstable.h"
+#include <bthread/unstable.h>
+#include <brpc/server.h>
 
 #include "sps_bucket.h"
+
+
+DEFINE_int32(sps_test_concurrency, 10000, "the number of bthread that BucketTestMultiThreaded setup with");
+DEFINE_int32(sps_test_room_pool_size, 10000, "the number of rooms that a session can join");
+DEFINE_int32(sps_test_simulation_sec, 1, "the seconds (approximately) session simulation lasts");
+DEFINE_int32(sps_test_dummy_server_port, 8888, "the port of brpc dummy server");
 
 
 using namespace sps;
@@ -94,7 +102,7 @@ protected:
         stop_ = false;
         bthread_cond_init(&start_barrier_, NULL);
         bthread_mutex_init(&start_mutex_, NULL);
-        for (int i=0; i<10000; ++i) {
+        for (int i=0; i<FLAGS_sps_test_concurrency; ++i) {
             bthread_t th;
             bthread_attr_t attr = BTHREAD_ATTR_NORMAL;
             if (bthread_start_background(
@@ -104,7 +112,7 @@ protected:
                 LOG(ERROR) << "can not create thread for simulate_session";
             }
         }
-        for (int i=0; i<10000; ++i) {
+        for (int i=0; i<FLAGS_sps_test_room_pool_size; ++i) {
             rooms_.push_back(butil::string_printf("room%02d", i));
         }
     }
@@ -151,7 +159,7 @@ protected:
         while (!stop_) {
             std::unique_ptr<Session> session(new Session(key, nullptr));
             int i1 = butil::RandInt(0, rooms_.size()-1);
-            int i2 = butil::RandInt(i1, std::min(i1+3, int(rooms_.size()-1)));
+            int i2 = butil::RandInt(i1, std::min(i1+5, int(rooms_.size()-1)));
             int from = std::min(i1, i2);
             int to = std::max(i1, i2);
             std::ostringstream oss;
@@ -177,7 +185,7 @@ protected:
 
 TEST_F(BucketTestMultiThreaded, Simulate_Session) {
     start();
-    for (int i=0; i<50; ++i) {
+    for (int i=0; i<FLAGS_sps_test_simulation_sec*5; ++i) {
         bthread_usleep(200000);
         LOG(INFO) << *bucket_;
     }
@@ -187,5 +195,8 @@ TEST_F(BucketTestMultiThreaded, Simulate_Session) {
 
 int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
+    GFLAGS_NS::SetUsageMessage("sps testing module");
+    GFLAGS_NS::ParseCommandLineFlags(&argc, &argv, true);
+    brpc::StartDummyServerAt(FLAGS_sps_test_dummy_server_port);
     return RUN_ALL_TESTS();
 }

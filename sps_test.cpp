@@ -187,8 +187,7 @@ protected:
 
     void stop_and_join() {
         stop_ = true;
-        for (std::vector<bthread_t>::iterator it = threads_.begin(); it != threads_.end(); ++it) {
-            bthread_t th = *it;
+        for (bthread_t th : threads_) {
             bthread_join(th, NULL);
         }
     }

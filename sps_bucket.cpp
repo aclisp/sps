@@ -137,7 +137,7 @@ Session::Ptr Bucket::del_session(const UserKey &key) {
     return ps;
 }
 
-Session::Ptr Bucket::get_session(const UserKey& key) {
+Session::Ptr Bucket::get_session(const UserKey& key) const {
     BAIDU_SCOPED_LOCK(mutex_);
     Session::Ptr* pps = sessions_.seek(key);
     if (pps == NULL) {
@@ -147,7 +147,7 @@ Session::Ptr Bucket::get_session(const UserKey& key) {
     }
 }
 
-Room::Ptr Bucket::get_room(const RoomKey& key) {
+Room::Ptr Bucket::get_room(const RoomKey& key) const {
     BAIDU_SCOPED_LOCK(mutex_);
     Room::Ptr* ppr = rooms_.seek(key);
     if (ppr == NULL) {
@@ -172,7 +172,7 @@ bool Room::del_session(Session::Ptr ps) {
     return sessions_.empty();
 }
 
-bool Room::has_session(Session::Ptr ps) {
+bool Room::has_session(Session::Ptr ps) const {
     CHECK(ps.get() != nullptr);
 
     BAIDU_SCOPED_LOCK(mutex_);
@@ -214,6 +214,42 @@ void Bucket::Describe(std::ostream& os, const brpc::DescribeOptions&) const {
     }
     os << " crowded=" << crowded;
     os << " }";
+}
+
+void Bucket::update_session_rooms(const UserKey& key, const std::string& new_rooms) {
+    if (session_rooms_unchanged(key, new_rooms)) {
+        return;
+    }
+
+    Session::Ptr ps = del_session(key);
+    if (!ps) {
+        return;
+    }
+
+    ps->set_interested_room(new_rooms);
+    add_session(ps);
+}
+
+bool Bucket::session_rooms_unchanged(const UserKey& key, const std::string& new_rooms) const {
+    Session::Ptr ps = get_session(key);
+    if (!ps) {
+        return true;
+    }
+
+    std::string cur_rooms;
+    std::vector<RoomKey> room_keys = ps->interested_rooms();
+    for (std::vector<RoomKey>::const_iterator it = room_keys.begin();
+         it != room_keys.end(); ++it) {
+        cur_rooms += it->room_id();
+        cur_rooms += ",";
+    }
+    if (!cur_rooms.empty()) {
+        cur_rooms.pop_back();  // remove the trailing comma
+    }
+    if (cur_rooms == new_rooms) {
+        return true;
+    }
+    return false;
 }
 
 }  // namespace sps

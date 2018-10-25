@@ -106,6 +106,55 @@ TEST_F(BucketTest, Add_and_Del_Session) {
     LOG(INFO) << *bucket_;
 }
 
+TEST_F(BucketTest, Update_Session_Rooms) {
+    UserKey key(__LINE__);
+    std::unique_ptr<Session> session(new Session(key, nullptr));
+    session->set_interested_room("earth");
+    bucket_->add_session(session.release());
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key)));
+
+    bucket_->update_session_rooms(key, "mars");
+    ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key)));
+}
+
+TEST_F(BucketTest, Update_Session_Rooms_2) {
+    UserKey key(__LINE__);
+    std::unique_ptr<Session> session(new Session(key, nullptr));
+    session->set_interested_room("earth,mars");
+    bucket_->add_session(session.release());
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key)));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key)));
+
+    bucket_->update_session_rooms(key, "mars,mercury");
+    ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key)));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mercury"))->has_session(bucket_->get_session(key)));
+}
+
+TEST_F(BucketTest, Update_Session_Rooms_3) {
+    UserKey key(__LINE__);
+    std::unique_ptr<Session> session(new Session(key, nullptr));
+    session->set_interested_room("earth");
+    bucket_->add_session(session.release());
+
+    bucket_->update_session_rooms(key, "");
+    ASSERT_TRUE(bucket_->get_session(key).get());
+    ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
+    ASSERT_FALSE(bucket_->get_room(RoomKey("mars")));
+}
+
+TEST_F(BucketTest, Update_Session_Rooms_4) {
+    UserKey key(__LINE__);
+    std::unique_ptr<Session> session(new Session(key, nullptr));
+    session->set_interested_room("earth,mars");
+    bucket_->add_session(session.release());
+
+    bucket_->update_session_rooms(key, "earth,mars");
+    bucket_->update_session_rooms(key, "earth");
+    bucket_->update_session_rooms(key, "earth");
+}
+
 class BucketTestMultiThreaded : public testing::Test {
 protected:
     void SetUp() override {

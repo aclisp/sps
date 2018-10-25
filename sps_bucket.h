@@ -62,9 +62,11 @@ public:
     Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
     ~Session();
     void set_interested_room(const std::string& rooms);
+
     std::vector<RoomKey> interested_rooms() const;
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
     const UserKey& key() const { return key_; }
+
 private:
     UserKey key_;
     butil::intrusive_ptr<brpc::ProgressiveAttachment> writer_;
@@ -75,18 +77,24 @@ private:
 };
 
 class Room : public brpc::SharedObject {
+    friend class Bucket;
+
 public:
     typedef butil::intrusive_ptr<Room> Ptr;
     typedef butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> Map;
 
-    explicit Room(const RoomKey& key);
     ~Room();
-    void add_session(Session::Ptr ps);
-    bool del_session(Session::Ptr ps);
+
     const char* room_id() const { return key_.room_id(); }
     const RoomKey& key() const { return key_; }
-    bool has_session(Session::Ptr ps);
+    bool has_session(Session::Ptr ps) const;
     size_t size() const { return sessions_.size(); }
+
+protected:
+    explicit Room(const RoomKey& key);
+    void add_session(Session::Ptr ps);
+    bool del_session(Session::Ptr ps);
+
 private:
     RoomKey key_;
     mutable bthread::Mutex mutex_;
@@ -97,15 +105,23 @@ class Bucket : public brpc::SharedObject,
                public brpc::Describable {
 public:
     typedef std::unique_ptr<Bucket> Ptr;
+
     Bucket(int index, const ServerOptions& options);
     ~Bucket();
-    int index() const { return index_; }
+
     void add_session(Session* session);
     void add_session(Session::Ptr ps);
     Session::Ptr del_session(const UserKey& key);
+    void update_session_rooms(const UserKey& key, const std::string& new_rooms);
+
+    int index() const { return index_; }
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
-    Session::Ptr get_session(const UserKey& key);
-    Room::Ptr get_room(const RoomKey& key);
+    Session::Ptr get_session(const UserKey& key) const;
+    Room::Ptr get_room(const RoomKey& key) const;
+
+protected:
+    bool session_rooms_unchanged(const UserKey& key, const std::string& new_rooms) const;
+
 private:
     const int index_;
     mutable bthread::Mutex mutex_;

@@ -1,5 +1,6 @@
 #include <gflags/gflags.h>
 #include <butil/logging.h>
+#include <butil/strings/string_number_conversions.h>
 #include <brpc/server.h>
 
 #include "sps_bucket.h"
@@ -13,6 +14,8 @@ DEFINE_string(certificate, "insecure.crt", "Certificate file path to enable SSL"
 DEFINE_string(private_key, "insecure.key", "Private key file path to enable SSL");
 
 namespace sps {
+
+Bucket& GetBucket(int64_t uid);
 
 class SimplePushServer {
 public:
@@ -35,6 +38,17 @@ SimplePushServer::SimplePushServer(const ServerOptions& options)
     }
 }
 
+void remove_from_bucket(Bucket& bucket, const UserKey& key) {
+    Session::Ptr ps = bucket.del_session(key);
+    LOG(INFO) << "remove session: " << noflush;
+    if (!ps) {
+        LOG(INFO) << "already removed" << noflush;
+    } else {
+        LOG(INFO) << *ps << noflush;
+    }
+    LOG(INFO);
+}
+
 class PushServiceImpl : public PushService {
 public:
     PushServiceImpl() {};
@@ -44,17 +58,42 @@ public:
                        HttpResponse* ,
                        google::protobuf::Closure* done) {
         brpc::ClosureGuard done_guard(done);
-        brpc::Controller* cntl =
-            static_cast<brpc::Controller*>(cntl_base);
+        brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
-        butil::IOBufBuilder os;
-        os << "queries:";
-        for (brpc::URI::QueryIterator it = cntl->http_request().uri().QueryBegin();
-                it != cntl->http_request().uri().QueryEnd(); ++it) {
-            os << ' ' << it->first << '=' << it->second;
+        const brpc::URI& uri = cntl->http_request().uri();
+        const std::string* pUid = uri.GetQuery("uid");
+        const std::string* pDeviceType = uri.GetQuery("hid");
+        const std::string* pRooms = uri.GetQuery("tid");
+        const std::string* pOpaque = uri.GetQuery("o");
+        pOpaque = 0;  // TODO
+
+        if (pUid == NULL) {
+            cntl->SetFailed(EINVAL, "`uid` is required");
+            return;
         }
-        os << "\nbody: " << cntl->request_attachment() << '\n';
-        os.move_to(cntl->response_attachment());
+        int64_t uid = 0;
+        if (!butil::StringToInt64(*pUid, &uid)) {
+            cntl->SetFailed(EINVAL, "`uid` is not a number: %s", pUid->c_str());
+            return;
+        }
+
+        int device_type = 0;
+        if (pDeviceType) {
+            if (!butil::StringToInt(*pDeviceType, &device_type)) {
+                cntl->SetFailed(EINVAL, "`hid` is not a number: %s", pDeviceType->c_str());
+                return;
+            }
+        }
+
+        const UserKey key(uid, device_type);
+        Bucket& bucket = GetBucket(uid);
+        brpc::ProgressiveAttachment* pa = cntl->CreateProgressiveAttachment(brpc::FORCE_STOP);
+        std::unique_ptr<Session> session(new Session(key, pa));
+        if (pRooms) {
+            session->set_interested_room(*pRooms);
+        }
+        bucket.add_session(session.release());
+        pa->NotifyOnStopped(brpc::NewCallback<Bucket&, const UserKey&>(remove_from_bucket, bucket, key));
     }
 };
 

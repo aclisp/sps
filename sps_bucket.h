@@ -61,6 +61,7 @@ public:
 
     Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
     ~Session();
+    int Write(const butil::IOBuf& data);
     void set_interested_room(const std::string& rooms);
 
     std::vector<RoomKey> interested_rooms() const;
@@ -85,6 +86,7 @@ public:
     typedef butil::FlatMap<RoomKey, Room::Ptr, RoomKey::Hasher> Map;
 
     ~Room();
+    void Write(const butil::IOBuf& data);
 
     const char* room_id() const { return key_.room_id(); }
     const RoomKey& key() const { return key_; }

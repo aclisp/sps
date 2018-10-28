@@ -50,6 +50,28 @@ Session::~Session() {
     VLOG(1) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
 }
 
+int Session::Write(const butil::IOBuf& data) {
+    int res;
+    if (0 == writer_->Write(data)) {
+        res = 0;
+    } else {
+        res = errno;
+    }
+    written_us_ = butil::gettimeofday_us();
+    return res;
+}
+
+void Room::Write(const butil::IOBuf& data) {
+    BAIDU_SCOPED_LOCK(mutex_);
+    for (Session::Map::iterator it = sessions_.begin(); it != sessions_.end(); ++it) {
+        Session::Ptr session = it->second;
+        int err = session->Write(data);
+        if (0 != err) {
+            LOG(WARNING) << "failed write to " << *session << " " << berror(err);
+        }
+    }
+}
+
 void Session::set_interested_room(const std::string& rooms) {
     BAIDU_SCOPED_LOCK(mutex_);
     interested_rooms_.clear();

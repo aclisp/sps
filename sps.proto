@@ -8,5 +8,7 @@ message HttpResponse {};
 
 service PushService {
     rpc subscribe(HttpRequest) returns (HttpResponse);
+    rpc notify_to_user(HttpRequest) returns (HttpResponse);
+    rpc notify_to_room(HttpRequest) returns (HttpResponse);
     rpc subsist(HttpRequest) returns (HttpResponse);
 };

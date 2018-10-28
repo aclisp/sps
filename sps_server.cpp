@@ -73,8 +73,6 @@ public:
         const std::string* pUid = uri.GetQuery("uid");
         const std::string* pDeviceType = uri.GetQuery("hid");
         const std::string* pRooms = uri.GetQuery("tid");
-        const std::string* pOpaque = uri.GetQuery("o");
-        pOpaque = 0;  // TODO
 
         if (pUid == NULL) {
             cntl->SetFailed(EINVAL, "`uid` is required");

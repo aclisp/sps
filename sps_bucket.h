@@ -66,6 +66,7 @@ public:
     std::vector<RoomKey> interested_rooms() const;
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
     const UserKey& key() const { return key_; }
+    void* connection_id() const { return writer_.get(); }
 
 private:
     UserKey key_;
@@ -88,7 +89,7 @@ public:
     const char* room_id() const { return key_.room_id(); }
     const RoomKey& key() const { return key_; }
     bool has_session(Session::Ptr ps) const;
-    size_t size() const { return sessions_.size(); }
+    size_t size() const;
 
 protected:
     explicit Room(const RoomKey& key);
@@ -118,6 +119,8 @@ public:
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
     Session::Ptr get_session(const UserKey& key) const;
     Room::Ptr get_room(const RoomKey& key) const;
+    size_t count_session() const;
+    size_t count_room() const;
 
 protected:
     bool session_rooms_unchanged(const UserKey& key, const std::string& new_rooms) const;

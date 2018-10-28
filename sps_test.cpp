@@ -35,18 +35,37 @@ TEST_F(BucketTest, Add_Session) {
     UserKey key(__LINE__);
     std::unique_ptr<Session> session(new Session(key, nullptr));
     ASSERT_EQ(0, session->interested_rooms().size());
-    LOG(INFO) << *session;
 
     session->set_interested_room("earth,mars");
     ASSERT_EQ(2, session->interested_rooms().size());
     ASSERT_EQ(RoomKey("earth"), session->interested_rooms()[0]);
     ASSERT_EQ(RoomKey("mars"), session->interested_rooms()[1]);
-    LOG(INFO) << *session;
 
     bucket_->add_session(session.release());
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(2, bucket_->count_room());
     ASSERT_TRUE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key)));
     ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key)));
-    LOG(INFO) << *bucket_;
+}
+
+TEST_F(BucketTest, Add_Same_Session) {
+    UserKey key(__LINE__);
+
+    std::unique_ptr<Session> session1(new Session(key, nullptr));
+    session1->set_interested_room("earth,mars");
+    bucket_->add_session(session1.release());
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(2, bucket_->count_room());
+
+    std::unique_ptr<Session> session2(new Session(key, nullptr));
+    session2->set_interested_room("earth");
+    bucket_->add_session(session2.release());
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(1, bucket_->count_room());
+
+    ASSERT_FALSE(bucket_->get_room(RoomKey("mars")));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth")).get());
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key)));
 }
 
 TEST_F(BucketTest, Del_Session) {
@@ -56,6 +75,8 @@ TEST_F(BucketTest, Del_Session) {
     bucket_->add_session(session.release());
 
     Session::Ptr ps = bucket_->del_session(key);
+    ASSERT_EQ(0, bucket_->count_session());
+    ASSERT_EQ(0, bucket_->count_room());
     ASSERT_TRUE(!bucket_->get_session(key));
     ASSERT_FALSE(bucket_->get_session(key));
     ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
@@ -64,12 +85,16 @@ TEST_F(BucketTest, Del_Session) {
     // now change the session's interested room, and add it into bucket again.
     ps->set_interested_room("mercury,earth");
     bucket_->add_session(ps);
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(2, bucket_->count_room());
     ASSERT_TRUE(bucket_->get_room(RoomKey("earth")).get());
     ASSERT_TRUE(bucket_->get_room(RoomKey("mercury")).get());
     ASSERT_FALSE(bucket_->get_room(RoomKey("mars")));
     ASSERT_EQ(1, bucket_->get_room(RoomKey("earth"))->size());
     ASSERT_EQ(1, bucket_->get_room(RoomKey("mercury"))->size());
     ASSERT_FALSE(!bucket_->get_session(key));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key)));
+    ASSERT_TRUE(bucket_->get_room(RoomKey("mercury"))->has_session(bucket_->get_session(key)));
 }
 
 TEST_F(BucketTest, Add_and_Del_Session) {
@@ -87,23 +112,32 @@ TEST_F(BucketTest, Add_and_Del_Session) {
 
     bucket_->add_session(session1.release());
     bucket_->add_session(session2.release());
+    ASSERT_EQ(2, bucket_->count_session());
+    ASSERT_EQ(2, bucket_->count_room());
     ASSERT_FALSE(bucket_->get_room(RoomKey("mercury")));
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("earth"))->size());
+    ASSERT_EQ(2, bucket_->get_room(RoomKey("mars"))->size());
     ASSERT_TRUE (bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key1)));
     ASSERT_FALSE(bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key2)));
     ASSERT_TRUE (bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key1)));
     ASSERT_TRUE (bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key2)));
-    LOG(INFO) << *bucket_;
 
     bucket_->del_session(key1);
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(1, bucket_->count_room());
+    ASSERT_FALSE(bucket_->get_room(RoomKey("earth")));
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("mars"))->size());
     ASSERT_TRUE(bucket_->get_room(RoomKey("mars")).get());
     ASSERT_TRUE(bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key2)));
-    LOG(INFO) << *bucket_;
 
     bucket_->add_session(session3.release());
     bucket_->del_session(key2);
+    ASSERT_EQ(1, bucket_->count_session());
+    ASSERT_EQ(2, bucket_->count_room());
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("earth"))->size());
+    ASSERT_EQ(1, bucket_->get_room(RoomKey("mars"))->size());
     ASSERT_TRUE (bucket_->get_room(RoomKey("earth"))->has_session(bucket_->get_session(key3)));
     ASSERT_TRUE (bucket_->get_room(RoomKey("mars"))->has_session(bucket_->get_session(key3)));
-    LOG(INFO) << *bucket_;
 }
 
 TEST_F(BucketTest, Update_Session_Rooms) {

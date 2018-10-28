@@ -17,13 +17,13 @@ Bucket::Bucket(int index, const ServerOptions& options)
     : index_(index) {
     CHECK_EQ(0, sessions_.init(options.suggested_user_count, 70));
     CHECK_EQ(0, rooms_.init(options.suggested_room_count, 70));
-    LOG(INFO) << "create bucket[" << index_ << "] of"
+    VLOG(1) << "create bucket[" << index_ << "] of"
               << " room=" << options.suggested_room_count
               << " user=" << options.suggested_user_count;
 }
 
 Bucket::~Bucket() {
-    LOG(INFO) << "destroy bucket[" << index_ << "]";
+    VLOG(1) << "destroy bucket[" << index_ << "]";
 }
 
 Room::Room(const RoomKey& key)
@@ -70,6 +70,10 @@ void Bucket::add_session(Session* session) {
 
 void Bucket::add_session(Session::Ptr ps) {
     CHECK(ps.get() != nullptr);
+    Session::Ptr old_ps = del_session(ps->key());
+    if (old_ps) {
+        LOG(WARNING) << "removed existing session: " << *old_ps;
+    }
 
     std::vector<RoomKey> room_keys = ps->interested_rooms();
     std::vector<Room::Ptr> interested_rooms;
@@ -149,6 +153,16 @@ Room::Ptr Bucket::get_room(const RoomKey& key) const {
     }
 }
 
+size_t Bucket::count_session() const {
+    BAIDU_SCOPED_LOCK(mutex_);
+    return sessions_.size();
+}
+
+size_t Bucket::count_room() const {
+    BAIDU_SCOPED_LOCK(mutex_);
+    return rooms_.size();
+}
+
 void Room::add_session(Session::Ptr ps) {
     CHECK(ps.get() != nullptr);
 
@@ -162,6 +176,11 @@ bool Room::del_session(Session::Ptr ps) {
     BAIDU_SCOPED_LOCK(mutex_);
     sessions_.erase(ps->key());
     return sessions_.empty();
+}
+
+size_t Room::size() const {
+    BAIDU_SCOPED_LOCK(mutex_);
+    return sessions_.size();
 }
 
 bool Room::has_session(Session::Ptr ps) const {

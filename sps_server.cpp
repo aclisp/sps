@@ -38,9 +38,18 @@ SimplePushServer::SimplePushServer(const ServerOptions& options)
     }
 }
 
-void remove_from_bucket(Bucket& bucket, const UserKey& key) {
-    Session::Ptr ps = bucket.del_session(key);
-    LOG(INFO) << "remove session: " << noflush;
+void remove_from_bucket(Bucket& bucket, UserKey key, void* cid) {
+    LOG(INFO) << "just enter remove_from_bucket: " << bucket;
+    LOG(INFO) << "would remove this key: " << key.uid << "," << key.device_type;
+    Session::Ptr ps = bucket.get_session(key);
+    if (ps && ps->connection_id() != cid) {
+        LOG(INFO) << "connection id mismatch: session already removed";
+        LOG(INFO) << "current session: " << *ps;
+        return;
+    }
+
+    ps = bucket.del_session(key);
+    LOG(INFO) << "removed session: " << noflush;
     if (!ps) {
         LOG(INFO) << "already removed" << noflush;
     } else {
@@ -85,15 +94,17 @@ public:
             }
         }
 
-        const UserKey key(uid, device_type);
+        UserKey key(uid, device_type);
         Bucket& bucket = GetBucket(uid);
         brpc::ProgressiveAttachment* pa = cntl->CreateProgressiveAttachment(brpc::FORCE_STOP);
+        pa->NotifyOnStopped(brpc::NewCallback<Bucket&, UserKey, void*>(remove_from_bucket, bucket, key, pa));
         std::unique_ptr<Session> session(new Session(key, pa));
         if (pRooms) {
             session->set_interested_room(*pRooms);
         }
         bucket.add_session(session.release());
-        pa->NotifyOnStopped(brpc::NewCallback<Bucket&, const UserKey&>(remove_from_bucket, bucket, key));
+
+        LOG(INFO) << "subscribe ok: " << bucket << " " << *bucket.get_session(key);
     }
 };
 
@@ -137,9 +148,5 @@ int main(int argc, char* argv[]) {
     }
 
     server.RunUntilAskedToQuit();
-
-    // testing
-    LOG(INFO) << "quitting: hit bucket of " << sps::GetBucket(-1).index();
-
     return 0;
 }

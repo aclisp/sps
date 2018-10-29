@@ -1,3 +1,5 @@
+#include "sps_server.h"
+
 #include <gflags/gflags.h>
 #include <butil/logging.h>
 #include <butil/strings/string_number_conversions.h>
@@ -16,22 +18,7 @@ DEFINE_string(private_key, "insecure.key", "Private key file path to enable SSL"
 
 namespace sps {
 
-class SimplePushServer;
 SimplePushServer* SPS = nullptr;
-
-class SimplePushServer {
-public:
-    typedef std::unique_ptr<SimplePushServer> Ptr;
-    explicit SimplePushServer(const ServerOptions& options);
-    brpc::Server& brpc_server() { return *brpc_server_; }
-    Bucket& bucket(int64_t uid) {
-        return *buckets_[uid % buckets_.size()];  // uid promotes to unsigned
-    }
-    std::vector<Bucket::Ptr>& buckets() { return buckets_; }
-private:
-    std::unique_ptr<brpc::Server> brpc_server_;
-    std::vector<Bucket::Ptr> buckets_;
-};
 
 SimplePushServer::SimplePushServer(const ServerOptions& options)
     : brpc_server_(new brpc::Server)
@@ -75,15 +62,23 @@ public:
 
         const brpc::URI& uri = cntl->http_request().uri();
         const std::string* pRooms = uri.GetQuery("r");
+        const std::string* pAntiIdle = uri.GetQuery("i");
         UserKey key(0);
         if (!get_user_key_from_uri(uri, cntl, &key)) {
             return;
+        }
+        int anti_idle_s = 0;
+        if (pAntiIdle) {
+            if (!butil::StringToInt(*pAntiIdle, &anti_idle_s)) {
+                cntl->SetFailed(EINVAL, "`i` (anti-idle seconds) is not a number: %s", pAntiIdle->c_str());
+                return;
+            }
         }
 
         Bucket& bucket = SPS->bucket(key.uid);
         brpc::ProgressiveAttachment* pa = cntl->CreateProgressiveAttachment(brpc::FORCE_STOP);
         pa->NotifyOnStopped(brpc::NewCallback<Bucket&, UserKey, void*>(remove_from_bucket, bucket, key, pa));
-        std::unique_ptr<Session> session(new Session(key, pa));
+        std::unique_ptr<Session> session(new Session(key, pa, anti_idle_s));
         if (pRooms) {
             session->set_interested_room(*pRooms);
         }

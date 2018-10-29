@@ -8,6 +8,7 @@
 #include <brpc/server.h>
 
 #include "sps_bucket.h"
+#include "sps_server.h"
 
 
 DEFINE_int32(sps_test_concurrency, 10000, "the number of bthread that BucketTestMultiThreaded setup with");
@@ -15,6 +16,10 @@ DEFINE_int32(sps_test_room_pool_size, 10000, "the number of rooms that a session
 DEFINE_int32(sps_test_simulation_sec, 1, "the seconds (approximately) session simulation lasts");
 DEFINE_int32(sps_test_dummy_server_port, -1, "the port of brpc dummy server. set to -1 does not start the dummy server.");
 
+
+namespace sps {
+SimplePushServer* SPS = nullptr;
+}
 
 using namespace sps;
 

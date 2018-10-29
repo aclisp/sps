@@ -42,7 +42,7 @@ Prerequisite:
 
 Client subscribe push events by HTTP GET
 
-    /subscribe?u=<user_identity>[&t=<terminal_identity>][&r=<room_identity>][&o=<opaque>]
+    /subscribe?u=<user_identity>[&t=<terminal_identity>][&r=<room_identity>][&i=<anti-idle_seconds>][&o=<opaque>]
     Authorization: <type> <credentials>
 
 Client keeps the HTTP connection once successfully authenticated, and
@@ -56,6 +56,9 @@ replaces the Wire with the new HTTP connection, and quits previous connection.
 Client may provide a `r` (room) to specify the interested topics. Note
 this is the initial subscribing topics. Currently subscribing topics can
 be changed while Wire connects.
+
+Client may provide a `i` (anti-idle) to specify the seconds after which
+Server will send anti-idle events.
 
 Client may provide an opaque parameter for reliable events.
 

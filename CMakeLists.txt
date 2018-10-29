@@ -15,6 +15,7 @@ set(SOURCES
 add_executable(sps_server
         ${SOURCES}
         sps_server.cpp
+        sps_server.h
         )
 
 add_executable(sps_test

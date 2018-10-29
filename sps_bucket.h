@@ -59,7 +59,7 @@ public:
     typedef butil::intrusive_ptr<Session> Ptr;
     typedef butil::FlatMap<UserKey, Session::Ptr, UserKey::Hasher> Map;
 
-    Session(const UserKey& key, brpc::ProgressiveAttachment* pa);
+    Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_idle_s=0);
     ~Session();
     int Write(const butil::IOBuf& data);
     void set_interested_room(const std::string& rooms);
@@ -70,10 +70,14 @@ public:
     void* connection_id() const { return writer_.get(); }
 
 private:
+    static void OnAntiIdleTimer(void* arg);
+
     UserKey key_;
     butil::intrusive_ptr<brpc::ProgressiveAttachment> writer_;
-    int64_t created_us_;
-    int64_t written_us_;
+    const int64_t created_us_;
+    std::atomic_int64_t written_us_;
+    bthread_timer_t anti_idle_timer_id_;
+    const int anti_idle_s_;
     mutable bthread::Mutex mutex_;
     std::vector<RoomKey> interested_rooms_;
 };

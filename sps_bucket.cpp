@@ -3,7 +3,9 @@
 #include <butil/logging.h>
 #include <butil/strings/string_split.h>
 #include <brpc/builtin/common.h>
+#include <bthread/unstable.h>
 
+#include "sps_server.h"
 
 namespace sps {
 
@@ -36,18 +38,56 @@ Room::~Room() {
     VLOG(1) << "destroy room[" << room_id() << "]";
 }
 
-Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa)
-    : key_(key.uid) {
-    key_.device_type = key.device_type;
-    writer_.reset(pa);
-    created_us_ = butil::gettimeofday_us();
-    written_us_ = 0;
-
+Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_idle_s)
+    : key_(key)
+    , writer_(pa)
+    , created_us_(butil::gettimeofday_us())
+    , written_us_(created_us_)
+    , anti_idle_s_(anti_idle_s) {
+    if (anti_idle_s_ > 0) {
+        std::unique_ptr<UserKey> pKey(new UserKey(key));
+        int err = bthread_timer_add(&anti_idle_timer_id_,
+                butil::microseconds_from_now(anti_idle_s_*1000000L),
+                OnAntiIdleTimer, pKey.get());
+        if (0 != err) {
+            LOG(WARNING) << "fail to create timer: " << berror(err);
+        } else {
+            pKey.release();
+        }
+    }
     VLOG(1) << "create session[" << key_.uid << "," << key_.device_type << "]";
 }
 
 Session::~Session() {
     VLOG(1) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
+}
+
+void Session::OnAntiIdleTimer(void* arg) {
+    std::unique_ptr<UserKey> pKey(static_cast<UserKey*>(arg));
+    if (!SPS) {
+        return;
+    }
+
+    Session::Ptr ps = SPS->bucket(pKey->uid).get_session(*pKey);
+    if (!ps) {
+        return;
+    }
+
+    int64_t written_us = ps->written_us_;
+    int64_t now_us = butil::gettimeofday_us();
+    if ((now_us - written_us) >= ps->anti_idle_s_*1000000L) {
+        ps->writer_->Write("\r\n", 2);
+        ps->written_us_ = now_us;
+        written_us = now_us;
+    }
+    int err = bthread_timer_add(&ps->anti_idle_timer_id_,
+            butil::microseconds_to_timespec(written_us + ps->anti_idle_s_*1000000L),
+            OnAntiIdleTimer, pKey.get());
+    if (0 != err) {
+        LOG(WARNING) << "fail to create timer: " << berror(err);
+    } else {
+        pKey.release();
+    }
 }
 
 int Session::Write(const butil::IOBuf& data) {
@@ -67,7 +107,7 @@ void Room::Write(const butil::IOBuf& data) {
         Session::Ptr session = it->second;
         int err = session->Write(data);
         if (0 != err) {
-            LOG(WARNING) << "failed write to " << *session << " " << berror(err);
+            LOG(WARNING) << "fail write to " << *session << " " << berror(err);
         }
     }
 }

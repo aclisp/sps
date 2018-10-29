@@ -165,6 +165,91 @@ public:
         cntl->http_response().set_content_type("text/plain");
     }
 
+    void show_session(google::protobuf::RpcController* cntl_base,
+                      const HttpRequest* ,
+                      HttpResponse* ,
+                      google::protobuf::Closure* done) override {
+        brpc::ClosureGuard done_guard(done);
+        brpc::Controller *cntl = static_cast<brpc::Controller *>(cntl_base);
+
+        const brpc::URI &uri = cntl->http_request().uri();
+        UserKey key(0);
+        if (!get_user_key_from_uri(uri, cntl, &key)) {
+            return;
+        }
+
+        Bucket &bucket = SPS->bucket(key.uid);
+        Session::Ptr ps = bucket.get_session(key);
+        cntl->http_response().set_content_type("text/plain");
+        butil::IOBufBuilder os;
+        if (!ps) {
+            os << "offline";
+        } else {
+            os << *ps;
+        }
+        os << "\n";
+        os.move_to(cntl->response_attachment());
+    }
+
+    void show_room(google::protobuf::RpcController* cntl_base,
+                   const HttpRequest* ,
+                   HttpResponse* ,
+                   google::protobuf::Closure* done) override {
+        brpc::ClosureGuard done_guard(done);
+        brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+
+        const brpc::URI& uri = cntl->http_request().uri();
+        const std::string* pRooms = uri.GetQuery("r");
+        if (pRooms == NULL) {
+            cntl->SetFailed(EINVAL, "`r` (room identities) is required");
+            return;
+        }
+
+        // parse room identities
+        std::vector<RoomKey> target_rooms;
+        std::vector<std::string> pieces;
+        butil::SplitString(*pRooms, ',', &pieces);
+        for (const std::string& s : pieces) {
+            if (s.empty()) continue;
+            target_rooms.emplace_back(RoomKey(s));
+        }
+        if (target_rooms.empty()) {
+            cntl->SetFailed(EINVAL, "`r` (room identities) is empty");
+            return;
+        }
+
+        cntl->http_response().set_content_type("text/plain");
+        butil::IOBufBuilder os;
+        for (const RoomKey& key : target_rooms) {
+            os << "room[" << key.room_id() << "] :";
+            for (Bucket::Ptr& pb : SPS->buckets()) {
+                Room::Ptr pr = pb->get_room(key);
+                if (pr) {
+                    os << "\n                ";
+                    os << "bucket[" << pb->index() << "] ";
+                    os << "size=" << pr->size();
+                }
+            }
+            os << "\n";
+        }
+        os.move_to(cntl->response_attachment());
+    }
+
+    void show_bucket(google::protobuf::RpcController* cntl_base,
+                     const HttpRequest* ,
+                     HttpResponse* ,
+                     google::protobuf::Closure* done) override {
+        brpc::ClosureGuard done_guard(done);
+        brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
+
+        cntl->http_response().set_content_type("text/plain");
+        butil::IOBufBuilder os;
+        for (Bucket::Ptr& pb : SPS->buckets()) {
+            os << *pb << "\n";
+        }
+        os.move_to(cntl->response_attachment());
+    }
+
 protected:
     bool get_user_key_from_uri(const brpc::URI& uri, /*in*/brpc::Controller* cntl, /*out*/UserKey* key) {
         const std::string* pUid = uri.GetQuery("u");

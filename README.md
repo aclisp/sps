@@ -30,28 +30,30 @@ certificate (domain.crt) from scratch:
 
 Answer the CSR information prompt to complete the process.
 
-The -x509 option tells req to create a self-signed cerificate. The -days 365
+The -x509 option tells req to create a self-signed certificate. The -days 365
 option specifies that the certificate will be valid for 365 days. A temporary
 CSR is generated to gather information to associate with the certificate.
 
 ## Take online
 
 Prerequisite:
+
     User has login with UID. Got the Server returned Token.
 
 Client subscribe push events by HTTP GET
-    /subscribe?uid=<identity>[&hid=<identity>][&tid=<identity>][&o=<opaque>]
+
+    /subscribe?u=<user_identity>[&t=<terminal_identity>][&r=<room_identity>][&o=<opaque>]
     Authorization: <type> <credentials>
 
 Client keeps the HTTP connection once successfully authenticated, and
 continue reading from it. Client is considered online by Server as long
 as this HTTP connection is open.
 
-Client may provide a hid (Hardware ID) to uniquely identify the user's
+Client may provide a `t` (terminal) to uniquely identify the user's
 device. Only one Wire is allowed per user per device. A secondary subscribe
 replaces the Wire with the new HTTP connection, and quits previous connection.
 
-Client may provide a tid (Topic ID) to specify the interested topics. Note
+Client may provide a `r` (room) to specify the interested topics. Note
 this is the initial subscribing topics. Currently subscribing topics can
 be changed while Wire connects.
 
@@ -70,9 +72,7 @@ Client is considered offline by Server during this stage.
 
 ## On idle for too long
 
-Server regularly sends anti-idle events on the Wire. Client regularly
-declares its alive by HTTP POST /subsist if and only if there is no
-other requests for a long time.
+Server regularly sends anti-idle events on the Wire. 
 
 ## Reliable events
 
@@ -85,10 +85,12 @@ quits and subscribe again. Server may remove outdated push events.
 
 ## Topics
 
+Client subscribes the interested topics by joining rooms. Each room holds
+one topic. All Clients in the room will be notified when a event is published
+to the room.
+
 # Environment
 
 Install these on Ubuntu
 
     sudo apt-get install git g++ make libssl-dev libgflags-dev libprotobuf-dev libprotoc-dev protobuf-compiler libleveldb-dev libsnappy-dev libgoogle-perftools-dev
-
-

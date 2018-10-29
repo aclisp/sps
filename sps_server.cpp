@@ -74,7 +74,7 @@ public:
         brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
         const brpc::URI& uri = cntl->http_request().uri();
-        const std::string* pRooms = uri.GetQuery("tid");
+        const std::string* pRooms = uri.GetQuery("r");
         UserKey key(0);
         if (!get_user_key_from_uri(uri, cntl, &key)) {
             return;
@@ -120,7 +120,7 @@ public:
                 os << "error";
             }
         }
-        os << "\nuid=" << key.uid << " hid=" << key.device_type << "\n";
+        os << "\nuser=" << key.uid << " terminal=" << key.device_type << "\n";
         if (err) {
             os << "err=" << err << " " << berror(err) << "\n";
         }
@@ -135,13 +135,13 @@ public:
         brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
 
         const brpc::URI& uri = cntl->http_request().uri();
-        const std::string* pRooms = uri.GetQuery("tid");
+        const std::string* pRooms = uri.GetQuery("r");
         if (pRooms == NULL) {
-            cntl->SetFailed(EINVAL, "`tid` is required");
+            cntl->SetFailed(EINVAL, "`r` (room identities) is required");
             return;
         }
 
-        // parse tid
+        // parse room identities
         std::vector<RoomKey> target_rooms;
         std::vector<std::string> pieces;
         butil::SplitString(*pRooms, ',', &pieces);
@@ -150,7 +150,7 @@ public:
             target_rooms.emplace_back(RoomKey(s));
         }
         if (target_rooms.empty()) {
-            cntl->SetFailed(EINVAL, "`tid` is empty");
+            cntl->SetFailed(EINVAL, "`r` (room identities) is empty");
             return;
         }
 
@@ -167,22 +167,22 @@ public:
 
 protected:
     bool get_user_key_from_uri(const brpc::URI& uri, /*in*/brpc::Controller* cntl, /*out*/UserKey* key) {
-        const std::string* pUid = uri.GetQuery("uid");
-        const std::string* pDeviceType = uri.GetQuery("hid");
+        const std::string* pUid = uri.GetQuery("u");
+        const std::string* pDeviceType = uri.GetQuery("t");
 
         if (pUid == NULL) {
-            cntl->SetFailed(EINVAL, "`uid` is required");
+            cntl->SetFailed(EINVAL, "`u` (user identity) is required");
             return false;
         }
         int64_t uid = 0;
         if (!butil::StringToInt64(*pUid, &uid)) {
-            cntl->SetFailed(EINVAL, "`uid` is not a number: %s", pUid->c_str());
+            cntl->SetFailed(EINVAL, "`u` (user identity) is not a number: %s", pUid->c_str());
             return false;
         }
         int device_type = 0;
         if (pDeviceType) {
             if (!butil::StringToInt(*pDeviceType, &device_type)) {
-                cntl->SetFailed(EINVAL, "`hid` is not a number: %s", pDeviceType->c_str());
+                cntl->SetFailed(EINVAL, "`t` (terminal type) is not a number: %s", pDeviceType->c_str());
                 return false;
             }
         }

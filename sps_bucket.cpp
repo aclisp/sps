@@ -5,7 +5,6 @@
 #include <brpc/builtin/common.h>
 #include <bthread/unstable.h>
 
-#include "sps_server.h"
 
 namespace sps {
 
@@ -43,16 +42,19 @@ Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_i
     , writer_(pa)
     , created_us_(butil::gettimeofday_us())
     , written_us_(created_us_)
-    , anti_idle_us_(anti_idle_s*1000000L) {
+    , anti_idle_us_(anti_idle_s*1000000L)
+    , has_anti_idle_timer_(false) {
     if (anti_idle_us_ > 0) {
-        std::unique_ptr<UserKey> pKey(new UserKey(key));
+        // add a ref for OnAntiIdleTimer which does de-ref.
+        Session::Ptr add_ref(this);
         int err = bthread_timer_add(&anti_idle_timer_id_,
                 butil::microseconds_to_timespec(created_us_ + anti_idle_us_),
-                OnAntiIdleTimer, pKey.get());
-        if (0 != err) {
+                OnAntiIdleTimer, this);
+        if (err) {
             LOG(WARNING) << "fail to create timer: " << berror(err);
         } else {
-            pKey.release();
+            add_ref.detach();
+            has_anti_idle_timer_ = true;
         }
     }
     VLOG(1) << "create session[" << key_.uid << "," << key_.device_type << "]";
@@ -62,33 +64,43 @@ Session::~Session() {
     VLOG(1) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
 }
 
+void Session::Destroy() {
+    if (has_anti_idle_timer_) {
+        if (bthread_timer_del(anti_idle_timer_id_) == 0) {
+            // The callback is not run yet. Remove the additional ref added
+            // before creating the timer.
+            Session::Ptr de_ref(this, false);
+        }
+    }
+}
+
 void Session::OnAntiIdleTimer(void* arg) {
-    std::unique_ptr<UserKey> pKey(static_cast<UserKey*>(arg));
-    if (!SPS) {
-        return;
-    }
-
-    Session::Ptr ps = SPS->bucket(pKey->uid).get_session(*pKey);
-    if (!ps) {
-        return;
-    }
-
+    // hold the referenced session.
+    Session::Ptr ps(static_cast<Session*>(arg), false/*not add ref*/);
     int64_t written_us = ps->written_us_;
     int64_t now_us = butil::gettimeofday_us();
     if ((now_us - written_us) >= ps->anti_idle_us_) {
         if (ps->writer_) {  // writer could be null when testing
-            ps->writer_->Write("\r\n", 2);
+            if (0 != ps->writer_->Write("\r\n", 2)) {
+                int err = errno;
+                LOG(WARNING) << "fail write to " << *ps << " (" << berror(err) << ") "
+                             << "you probably forget to delete anti-idle timer for this session.";
+                return;
+            }
         }
         ps->written_us_ = now_us;
         written_us = now_us;
     }
+
+    // set up the next timer
     int err = bthread_timer_add(&ps->anti_idle_timer_id_,
             butil::microseconds_to_timespec(written_us + ps->anti_idle_us_),
-            OnAntiIdleTimer, pKey.get());
-    if (0 != err) {
+            OnAntiIdleTimer, ps.get());
+    if (err) {
         LOG(WARNING) << "fail to create timer: " << berror(err);
+        ps->has_anti_idle_timer_ = false;
     } else {
-        pKey.release();
+        ps.detach();
     }
 }
 
@@ -108,7 +120,7 @@ void Room::Write(const butil::IOBuf& data) {
     for (Session::Map::iterator it = sessions_.begin(); it != sessions_.end(); ++it) {
         Session::Ptr session = it->second;
         int err = session->Write(data);
-        if (0 != err) {
+        if (err) {
             LOG(WARNING) << "fail write to " << *session << " " << berror(err);
         }
     }
@@ -136,6 +148,7 @@ void Bucket::add_session(Session::Ptr ps) {
     CHECK(ps.get() != nullptr);
     Session::Ptr old_ps = del_session(ps->key());
     if (old_ps) {
+        old_ps->Destroy();
         LOG(WARNING) << "removed existing session: " << *old_ps;
     }
 

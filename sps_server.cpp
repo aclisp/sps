@@ -18,7 +18,7 @@ DEFINE_string(private_key, "insecure.key", "Private key file path to enable SSL"
 
 namespace sps {
 
-SimplePushServer* SPS = nullptr;
+static SimplePushServer* SPS = nullptr;
 
 SimplePushServer::SimplePushServer(const ServerOptions& options)
     : brpc_server_(new brpc::Server)
@@ -43,6 +43,7 @@ void remove_from_bucket(Bucket& bucket, UserKey key, void* cid) {
     if (!ps) {
         VLOG(1) << "already removed" << noflush;
     } else {
+        ps->Destroy();
         VLOG(1) << *ps << noflush;
     }
     VLOG(1);

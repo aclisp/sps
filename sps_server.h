@@ -23,8 +23,6 @@ private:
     std::vector<Bucket::Ptr> buckets_;
 };
 
-extern SimplePushServer* SPS;
-
 }  // namespace sps
 
 #endif  // SPS_SERVER_H_

@@ -63,6 +63,7 @@ public:
     ~Session();
     int Write(const butil::IOBuf& data);
     void set_interested_room(const std::string& rooms);
+    void Destroy();
 
     std::vector<RoomKey> interested_rooms() const;
     void Describe(std::ostream& os, const brpc::DescribeOptions&) const;
@@ -78,6 +79,7 @@ private:
     std::atomic<int64_t> written_us_;
     bthread_timer_t anti_idle_timer_id_;
     const int64_t anti_idle_us_;
+    bool has_anti_idle_timer_;
     mutable bthread::Mutex mutex_;
     std::vector<RoomKey> interested_rooms_;
 };

@@ -57,7 +57,7 @@ Client may provide a `r` (room) to specify the interested topics. Note
 this is the initial subscribing topics. Currently subscribing topics can
 be changed while Wire connects.
 
-Client may provide a `i` (anti-idle) to specify the seconds after which
+Client may provide an `i` (anti-idle) to specify the seconds after which
 Server will send anti-idle events.
 
 Client may provide an opaque parameter for reliable events.

@@ -75,9 +75,9 @@ private:
     UserKey key_;
     butil::intrusive_ptr<brpc::ProgressiveAttachment> writer_;
     const int64_t created_us_;
-    std::atomic_int64_t written_us_;
+    std::atomic<int64_t> written_us_;
     bthread_timer_t anti_idle_timer_id_;
-    const int anti_idle_s_;
+    const int64_t anti_idle_us_;
     mutable bthread::Mutex mutex_;
     std::vector<RoomKey> interested_rooms_;
 };

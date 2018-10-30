@@ -43,11 +43,11 @@ Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_i
     , writer_(pa)
     , created_us_(butil::gettimeofday_us())
     , written_us_(created_us_)
-    , anti_idle_s_(anti_idle_s) {
-    if (anti_idle_s_ > 0) {
+    , anti_idle_us_(anti_idle_s*1000000L) {
+    if (anti_idle_us_ > 0) {
         std::unique_ptr<UserKey> pKey(new UserKey(key));
         int err = bthread_timer_add(&anti_idle_timer_id_,
-                butil::microseconds_from_now(anti_idle_s_*1000000L),
+                butil::microseconds_to_timespec(created_us_ + anti_idle_us_),
                 OnAntiIdleTimer, pKey.get());
         if (0 != err) {
             LOG(WARNING) << "fail to create timer: " << berror(err);
@@ -75,13 +75,15 @@ void Session::OnAntiIdleTimer(void* arg) {
 
     int64_t written_us = ps->written_us_;
     int64_t now_us = butil::gettimeofday_us();
-    if ((now_us - written_us) >= ps->anti_idle_s_*1000000L) {
-        ps->writer_->Write("\r\n", 2);
+    if ((now_us - written_us) >= ps->anti_idle_us_) {
+        if (ps->writer_) {  // writer could be null when testing
+            ps->writer_->Write("\r\n", 2);
+        }
         ps->written_us_ = now_us;
         written_us = now_us;
     }
     int err = bthread_timer_add(&ps->anti_idle_timer_id_,
-            butil::microseconds_to_timespec(written_us + ps->anti_idle_s_*1000000L),
+            butil::microseconds_to_timespec(written_us + ps->anti_idle_us_),
             OnAntiIdleTimer, pKey.get());
     if (0 != err) {
         LOG(WARNING) << "fail to create timer: " << berror(err);

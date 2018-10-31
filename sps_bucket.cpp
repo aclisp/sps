@@ -18,23 +18,23 @@ Bucket::Bucket(int index, const ServerOptions& options)
     : index_(index) {
     CHECK_EQ(0, sessions_.init(options.suggested_user_count, 70));
     CHECK_EQ(0, rooms_.init(options.suggested_room_count, 70));
-    VLOG(1) << "create bucket[" << index_ << "] of"
+    VLOG(51) << "create bucket[" << index_ << "] of"
               << " room=" << options.suggested_room_count
               << " user=" << options.suggested_user_count;
 }
 
 Bucket::~Bucket() {
-    VLOG(1) << "destroy bucket[" << index_ << "]";
+    VLOG(51) << "destroy bucket[" << index_ << "]";
 }
 
 Room::Room(const RoomKey& key)
     : key_(key) {
     CHECK_EQ(0, sessions_.init(8, 70));
-    VLOG(1) << "create room[" << room_id() << "]";
+    VLOG(51) << "create room[" << room_id() << "]";
 }
 
 Room::~Room() {
-    VLOG(1) << "destroy room[" << room_id() << "]";
+    VLOG(51) << "destroy room[" << room_id() << "]";
 }
 
 Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_idle_s)
@@ -57,11 +57,11 @@ Session::Session(const UserKey& key, brpc::ProgressiveAttachment* pa, int anti_i
             has_anti_idle_timer_ = true;
         }
     }
-    VLOG(1) << "create session[" << key_.uid << "," << key_.device_type << "]";
+    VLOG(2) << "create session[" << key_.uid << "," << key_.device_type << "," << writer_.get() << "]";
 }
 
 Session::~Session() {
-    VLOG(1) << "destroy session[" << key_.uid << "," << key_.device_type << "]";
+    VLOG(2) << "destroy session[" << key_.uid << "," << key_.device_type << "," << writer_.get() << "]";
 }
 
 void Session::Destroy() {
@@ -275,6 +275,7 @@ std::vector<RoomKey> Session::interested_rooms() const {
 void Session::Describe(std::ostream& os, const brpc::DescribeOptions&) const {
     os << "sps::Session { uid=" << key_.uid
        << " device_type=" << key_.device_type
+       << " connection_id=" << writer_.get()
        << " created_on=" << brpc::PrintedAsDateTime(created_us_)
        << " written_on=" << brpc::PrintedAsDateTime(written_us_);
     std::vector<RoomKey> rooms = interested_rooms();

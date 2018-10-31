@@ -29,19 +29,22 @@ SimplePushServer::SimplePushServer(const ServerOptions& options)
 }
 
 void remove_from_bucket(Bucket& bucket, UserKey key, void* cid) {
-    VLOG(1) << "just enter remove_from_bucket: " << bucket;
-    VLOG(1) << "would remove this key: " << key.uid << "," << key.device_type;
+    VLOG(31) << "just enter remove_from_bucket: " << bucket;
+    VLOG(31) << "would remove this key: " << key.uid << "," << key.device_type;
     Session::Ptr ps = bucket.get_session(key);
     if (ps && ps->connection_id() != cid) {
-        VLOG(1) << "connection id mismatch: session already removed";
-        VLOG(1) << "current session: " << *ps;
+        VLOG(31) << "connection id mismatch: session already removed";
+        VLOG(31) << "current session: " << *ps;
         return;
     }
 
     ps = bucket.del_session(key);
     VLOG(1) << "removed session: " << noflush;
     if (!ps) {
-        VLOG(1) << "already removed" << noflush;
+        VLOG(1) << "uid=" << key.uid
+                << " device_type=" << key.device_type
+                << " connection_id=" << cid
+                << " already removed" << noflush;
     } else {
         ps->Destroy();
         VLOG(1) << *ps << noflush;

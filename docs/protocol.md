@@ -4,7 +4,7 @@
 从 Socket 上读消息时，如何设计一个最高效的 Buffer ？
 
 * **避免 copy**
-  - copy 时，拷贝的是管理结构而不是数据
+  - copy 时，拷贝的是管理结构而不是数据
 
 * **用 linked-list**
   - 删除 T* 是 O(1)
@@ -31,7 +31,7 @@
     //     `source' does not form a complete message yet.
     //   MakeParseError(PARSE_ERROR_TRY_OTHERS).
     //     `source' does not fit the protocol, the data should be tried by
-    //     other protocols. If the data is definitely corrupted (e.g. magic 
+    //     other protocols. If the data is definitely corrupted (e.g. magic
     //     header matches but other fields are wrong), pop corrupted part
     //     from `source' before returning.
     //  MakeMessage(InputMessageBase*):
@@ -42,3 +42,7 @@
 ```
 
 这里列举一些常见协议的分割方法：
+
+* baidu_std 按包头切下 meta 和 payload
+* http / h2 代理给其它类处理
+* redis 代理给其它类处理

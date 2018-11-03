@@ -46,3 +46,5 @@
 * baidu_std 按包头切下 meta 和 payload
 * http / h2 代理给其它类处理
 * redis 代理给其它类处理
+
+在客户端，`SerializeRequest` 用于请求结构体的序列化：也就是 `const google::protobuf::Message* request` 到 `butil::IOBuf* request_buf` 的转换。这里用到了 `google::protobuf::io::ZeroCopyOutputStream` （ TODO: 这个类是什么原理？）
